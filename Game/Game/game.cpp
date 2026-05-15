@@ -1,18 +1,47 @@
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "tiny_gltf.h"
+#include <atlimage.h>
 #include "Game.h"
-
+// コンストラクタ
 Game::Game(uint32_t width, uint32_t height)
+//　メンバ変数の初期化
     :m_hInst(nullptr), m_hWnd(nullptr), m_Width(width), m_Height(height) {
 
 }
+//  デストラクタ
 Game::~Game()
 {
 }
 
+//　ゲームの初期化処理
 bool Game::Initialize(HINSTANCE hInstance)
 {
-    return CreateGameWindow(hInstance);
+    if (!CreateGameWindow(hInstance))
+    {
+        return false;
+    }
+
+    tinygltf::Model model;
+    tinygltf::TinyGLTF loader;
+
+    std::string err;
+    std::string warn;
+
+    bool result = loader.LoadASCIIFromFile(
+        &model,
+        &err,
+        &warn,
+        "Gltf/gltf/soccer_ ball.gltf"
+    );
+
+    
+
+    return true;
 }
 
+//　ゲーム画面の作成
 bool Game::CreateGameWindow(HINSTANCE hInstance)
 {
     WNDCLASS wc{};
@@ -20,7 +49,7 @@ bool Game::CreateGameWindow(HINSTANCE hInstance)
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"DX12WindowClass";
-
+    wc.hbrBackground = (HBRUSH)GetStockObject(GRAY_BRUSH);
     RegisterClass(&wc);
 
     hwnd = CreateWindowEx(
@@ -48,6 +77,7 @@ bool Game::CreateGameWindow(HINSTANCE hInstance)
     return true;
 }
 
+//　ゲームの実行処理
 void Game::Run()
 {
     MSG msg{};
@@ -60,10 +90,19 @@ void Game::Run()
             DispatchMessage(&msg);
         }
 
-        // ここに描画処理
+        HBITMAP hBitmap = (HBITMAP)LoadImage(
+            nullptr,
+            L"Gltf/gltf/01.jpg",
+            IMAGE_BITMAP,
+            100,
+            100,
+            LR_LOADFROMFILE
+        );
+       
     }
 }
 
+//　ウィンドウプロシージャ
 LRESULT CALLBACK Game::WindowProc(
     HWND hwnd,
     UINT msg,
