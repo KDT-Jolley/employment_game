@@ -6,6 +6,7 @@
 #include <dxgi1_4.h>  // Åöí«â¡
 #include <DirectXMath.h>
 #include <wrl/client.h>
+using Microsoft::WRL::ComPtr;
 
 class Game
 {
@@ -18,6 +19,18 @@ public:
 
     void Run();
 
+    ComPtr<ID3D12Device> device;
+    ComPtr<IDXGISwapChain4> swapChain;
+    ComPtr<ID3D12CommandQueue> commandQueue;
+    ComPtr<ID3D12CommandAllocator> commandAllocator;
+    ComPtr<ID3D12GraphicsCommandList> commandList;
+    ComPtr<ID3D12DescriptorHeap> rtvHeap;
+
+    ComPtr<ID3D12Resource> backBuffers[2];
+    bool InitD3D12();
+    void Render();
+    UINT rtvDescriptorSize = 0;
+    UINT frameIndex = 0;
 private:
 
     HWND hwnd = nullptr;
