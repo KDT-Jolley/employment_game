@@ -3,6 +3,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "tiny_gltf.h"
 #include <atlimage.h>
+
 #include "Game.h"
 // コンストラクタ
 Game::Game(uint32_t width, uint32_t height)
@@ -55,27 +56,27 @@ bool Game::CreateGameWindow(HINSTANCE hInstance)
     wc.hbrBackground = (HBRUSH)GetStockObject(GRAY_BRUSH);
     RegisterClass(&wc);
 
-    hwnd = CreateWindowEx(
+    m_hWnd = CreateWindowEx(
         0,
         wc.lpszClassName,
         L"DirectX12",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        1280,
-        720,
+        960,
+        540,
         nullptr,
         nullptr,
         hInstance,
         nullptr
     );
-   
-    if (hwnd == nullptr)
+
+    if (m_hWnd == nullptr)
     {
         return false;
     }
 
-    ShowWindow(hwnd, SW_SHOW);
+    ShowWindow(m_hWnd, SW_SHOW);
 
     return true;
 }
@@ -92,23 +93,13 @@ void Game::Run()
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
         Render();
-        HBITMAP hBitmap = (HBITMAP)LoadImage(
-            nullptr,
-            L"Gltf/gltf/01.jpg",
-            IMAGE_BITMAP,
-            100,
-            100,
-            LR_LOADFROMFILE
-        );
-       
     }
 }
 bool Game::InitD3D12()
 {
     UINT dxgiFactoryFlags = 0;
-
-    ComPtr<IDXGIFactory7> factory;
 
     CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory));
 
@@ -124,6 +115,49 @@ bool Game::InitD3D12()
         &queueDesc,
         IID_PPV_ARGS(&commandQueue)
     );
+    Vertex vertices[] =
+    {
+        {{ 0.0f,  0.25f, 0.0f }, {1,0,0,1}},
+        {{ 0.25f,-0.25f, 0.0f }, {0,1,0,1}},
+        {{-0.25f,-0.25f, 0.0f }, {0,0,1,1}},
+    };
+    const UINT vertexBufferSize = sizeof(vertices);
+
+    D3D12_HEAP_PROPERTIES heapProps{};
+    heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+    D3D12_RESOURCE_DESC resourceDesc{};
+    resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    resourceDesc.Width = vertexBufferSize;
+    resourceDesc.Height = 1;
+    resourceDesc.DepthOrArraySize = 1;
+    resourceDesc.MipLevels = 1;
+    resourceDesc.SampleDesc.Count = 1;
+    resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+    device->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &resourceDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&vertexBuffer)
+    );
+
+    void* mappedData = nullptr;
+
+    vertexBuffer->Map(0, nullptr, &mappedData);
+
+    memcpy(mappedData, vertices, sizeof(vertices));
+
+    vertexBuffer->Unmap(0, nullptr);
+
+    vbView.BufferLocation =
+        vertexBuffer->GetGPUVirtualAddress();
+
+    vbView.SizeInBytes = vertexBufferSize;
+
+    vbView.StrideInBytes = sizeof(Vertex);
 
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
 
@@ -139,7 +173,7 @@ bool Game::InitD3D12()
 
     factory->CreateSwapChainForHwnd(
         commandQueue.Get(),
-        hwnd,
+        m_hWnd,
         &swapChainDesc,
         nullptr,
         nullptr,
@@ -202,7 +236,10 @@ bool Game::InitD3D12()
 void Game::Render()
 {
     commandAllocator->Reset();
-    commandList->Reset(commandAllocator.Get(), nullptr);
+    commandList->Reset(
+        commandAllocator.Get(),
+        pipelineState.Get()
+    );
 
     D3D12_RESOURCE_BARRIER barrier{};
 
@@ -220,6 +257,13 @@ void Game::Render()
 
     rtvHandle.ptr += frameIndex * rtvDescriptorSize;
 
+    commandList->OMSetRenderTargets(
+        1,
+        &rtvHandle,
+        FALSE,
+        nullptr
+    );
+
     FLOAT clearColor[] = { 0.0f, 0.2f, 0.8f, 1.0f };
 
     commandList->ClearRenderTargetView(
@@ -228,6 +272,16 @@ void Game::Render()
         0,
         nullptr
     );
+    commandList->SetGraphicsRootSignature(rootSignature.Get());
+
+    commandList->IASetPrimitiveTopology(
+        D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+    );
+
+    commandList->IASetVertexBuffers(0, 1, &vbView);
+
+    commandList->DrawInstanced(3, 1, 0, 0);
+
 
     barrier.Transition.StateBefore =
         D3D12_RESOURCE_STATE_RENDER_TARGET;
